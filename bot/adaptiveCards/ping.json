@@ -1,0 +1,19 @@
+{
+  "type": "AdaptiveCard",
+  "body": [
+    {
+      "type": "TextBlock",
+      "size": "extraLarge",
+      "weight": "Bolder",
+      "text": "Pong"
+    },
+    {
+      "type": "TextBlock",
+      "size": "small",
+      "text": "I'm online, in case you were wondering. 👀",
+      "wrap": true
+    }
+  ],
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.4"
+}

@@ -10,7 +10,7 @@
     {
       "type": "TextBlock",
       "size": "Large",
-      "text": "${mention}",
+      "text": "${ chosen }",
       "wrap": true
     }
   ],

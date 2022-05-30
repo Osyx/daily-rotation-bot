@@ -22,7 +22,7 @@
         "short": "Short description of {{config.manifest.appName.short}}",
         "full": "Full description of {{config.manifest.appName.short}}"
     },
-    "accentColor": "#FFFFFF",
+    "accentColor": "#6e0ffc",
     "bots": [
         {
             "botId": "{{state.fx-resource-bot.botId}}",
@@ -41,8 +41,8 @@
                     ],
                     "commands": [
                         {
-                            "title": "welcome",
-                            "description": "Resend welcome card of this Bot"
+                            "title": "ping",
+                            "description": "Test if bot is online."
                         },
                         {
                             "title": "choose",
@@ -53,8 +53,8 @@
                             "description": "Register the members who should partake in the daily rotation."
                         },
                         {
-                            "title": "notify",
-                            "description": "Test mention."
+                            "title": "users",
+                            "description": "Returns the members who are currently taking part in the daily rotation."
                         }
                     ]
                 }

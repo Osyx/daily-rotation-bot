@@ -3,7 +3,9 @@ import {
   AdaptiveCardInvokeResponse,
   AdaptiveCardInvokeValue,
   CardFactory,
+  ConversationState,
   MessageFactory,
+  StatePropertyAccessor,
   TeamsActivityHandler,
   TeamsChannelAccount,
   TeamsInfo,
@@ -12,52 +14,55 @@ import {
 import { encode } from "html-entities"
 import rawChosenCard from "./adaptiveCards/chosen.json"
 import rawPickerCard from "./adaptiveCards/personPicker.json"
-import rawWelcomeCard from "./adaptiveCards/welcome.json"
+import rawPingCard from "./adaptiveCards/ping.json"
 
-type Mention = {
-  mentioned: TeamsChannelAccount,
-  text: string,
-  type: string
+
+type SaveData = {
+  registeredUserIds: string[]
 }
 
 export interface DataInterface {
   chosen: string
 }
 
-export class DailyRotationBot extends TeamsActivityHandler {
-  chosenObj: { chosen: string }
-  availableUsersObj: { users: Promise<TeamsChannelAccount>[] }
+const CONVERSATION_DATA_PROPERTY = 'conversationData'
 
-  constructor() {
+export class DailyRotationBot extends TeamsActivityHandler {
+
+  chosenObj: { chosen: string }
+  conversationState: ConversationState
+  conversationDataAccessor: StatePropertyAccessor
+
+  constructor(conversationState: ConversationState) {
     super()
 
     this.chosenObj = { chosen: "John Doe" }
-    this.availableUsersObj = { users: [] }
+    this.conversationState = conversationState
+    this.conversationDataAccessor = conversationState.createProperty(CONVERSATION_DATA_PROPERTY)
 
     this.onMessage(async (context, next) => {
       console.log("Running with Message Activity.")
 
+      const conversationData = await this.conversationDataAccessor.get(context, { registeredUserIds: [] })
+
       let txt = context.activity.text
       const removedMentionText = TurnContext.removeRecipientMention(
         context.activity
-      )
-      if (removedMentionText) {
-        txt = removedMentionText.toLowerCase().replace(/\n|\r/g, "").trim()
-      }
-      if (txt !== null && txt !== undefined) {
-        switch (txt) {
-          case "welcome": {
-            const card =
-              AdaptiveCards.declareWithoutData(rawWelcomeCard).render()
+        )
+        if (removedMentionText) {
+          txt = removedMentionText.toLowerCase().replace(/\n|\r/g, "").trim()
+        }
+        if (txt !== null && txt !== undefined) {
+          switch (txt) {
+          case "ping": {
+            const card = AdaptiveCards.declareWithoutData(rawPingCard).render()
             await context.sendActivity({
               attachments: [CardFactory.adaptiveCard(card)]
             })
             break
           }
           case "choose": {
-            const card = AdaptiveCards.declare<DataInterface>(
-              rawChosenCard
-            ).render(this.chosenObj)
+            const card = AdaptiveCards.declare<DataInterface>(rawChosenCard).render(this.chosenObj)
             await context.sendActivity({
               attachments: [CardFactory.adaptiveCard(card)]
             })
@@ -68,69 +73,58 @@ export class DailyRotationBot extends TeamsActivityHandler {
             await context.sendActivity({ attachments: [userCard] })
             break
           }
-          case "notify": {
-            const msg = this.mentionActivity(context)
-            await context.sendActivity(msg)
+          case "users": {
+            if (conversationData.registeredUserIds) {
+              const msg = await this.handleRegisteredUsers(context, conversationData)
+              await context.sendActivity(msg)
+            }
             break
           }
         }
       } else if (context.activity.value !== null && context.activity.value !== undefined) {
-        const reply = await this.handleRegisterResponse(context)
-        await context.sendActivity(reply)
+        this.handleRegisterResponse(context, conversationData)
       }
 
       await next()
     })
   }
 
-  private handleRegisterResponse(context: TurnContext) {
-    const combinedUserId = context.activity.value.userId
-    if (typeof combinedUserId === 'string') {
-      this.method(combinedUserId, context)
-    }
-    return this.getMembersMention()
-  }
-
-  private method(combinedUserId: string, context: TurnContext) {
-    const userIds = combinedUserId.split(',')
+  private async handleRegisteredUsers(context: TurnContext, conversationData: SaveData) {
+    const userIds = conversationData.registeredUserIds
     const members = userIds.map((userId) => TeamsInfo.getMember(context, userId))
-    this.availableUsersObj.users = members
+    return this.getSavedMembersMention(members)
   }
 
-  private mentionActivity(context: TurnContext) {
-    const mention = this.mention(context.activity.from)
-    const replyActivity = MessageFactory.text(`${ mention.text }, it's your turn today!`)
-    replyActivity.entities = [mention]
+  private async getSavedMembersMention(members: Promise<TeamsChannelAccount>[]) {
+    const promisedMentions = members.map(async (user) => this.mention(await user))
+    const mentions = await Promise.all(promisedMentions)
+    const mentionTexts = mentions.map((mention) => mention.text)
+    const mentionText = mentionTexts.join(', ')
+    const replyActivity = MessageFactory.text(`Saved members: ${ mentionText }`)
+    replyActivity.entities = mentions
     return replyActivity
   }
 
   private mention(member: TeamsChannelAccount) {
     return {
       mentioned: member,
-      text: `<at>${encode(member.name)}</at>`,
+      text: `<at>${ encode(member.name) }</at>`,
       type: "mention"
     }
   }
 
-  private async getMembersMention() {
-    const mentions = this.availableUsersObj.users.map(async (user) => this.mention(await user))
-    const mentionString = await this.getMentionsAsString(mentions)
-    const replyActivity = MessageFactory.text(`Members picked : ${ mentionString }`)
-    replyActivity.entities = await Promise.all(mentions)
-    return replyActivity
-  }
-
-  private async getMentionsAsString(mentions: Promise<Mention>[]) {
-    const mentionTexts = mentions.map(async (mention) => (await mention).text)
-    return (await Promise.all(mentionTexts)).join(', ')
+  private handleRegisterResponse(context: TurnContext, conversationData: SaveData) {
+    const combinedUserId = context.activity.value.userId
+    if (typeof combinedUserId === 'string') {
+      const userIds = combinedUserId.split(',')
+      conversationData.registeredUserIds = userIds
+    }
   }
 
   async onAdaptiveCardInvoke(context: TurnContext, invokeValue: AdaptiveCardInvokeValue): Promise<AdaptiveCardInvokeResponse> {
     if (invokeValue.action.verb === "skip") {
       this.chosenObj.chosen = `Skipped ${ this.chosenObj.chosen }`
-      const card = AdaptiveCards.declare<DataInterface>(rawChosenCard).render(
-        this.chosenObj
-      )
+      const card = AdaptiveCards.declare<DataInterface>(rawChosenCard).render(this.chosenObj)
       await context.updateActivity({
         type: "message",
         id: context.activity.replyToId,
@@ -139,4 +133,9 @@ export class DailyRotationBot extends TeamsActivityHandler {
       return { statusCode: 200, type: undefined, value: undefined }
     }
   }
+
+  async run(context: TurnContext) {
+    await super.run(context)
+    await this.conversationState.saveChanges(context, false)
+}
 }
