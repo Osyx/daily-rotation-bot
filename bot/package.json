@@ -26,9 +26,16 @@
     "restify": "^8.5.1"
   },
   "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^3.0.0",
+    "@tsconfig/recommended": "^1.0.1",
     "@types/restify": "8.4.2",
+    "@typescript-eslint/eslint-plugin": "^5.27.0",
     "env-cmd": "^10.1.0",
+    "eslint": "^8.16.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-import": "^2.26.0",
     "nodemon": "^2.0.7",
+    "prettier": "^2.6.2",
     "shx": "^0.3.3",
     "ts-node": "~9.1.1",
     "typescript": "~3.9.2"

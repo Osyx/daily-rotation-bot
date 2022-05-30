@@ -7,5 +7,17 @@
             ],
             "schema": {}
         }
-    ]
+    ],
+    "editor.formatOnSave": true,
+    "eslint.alwaysShowStatus": true,
+    "eslint.format.enable": false,
+    "eslint.nodePath": "./bot",
+    "eslint.enable": true,
+    "eslint.workingDirectories": [
+        "./bot"
+    ],
+    "prettier.configPath": "/bot/.prettierrc.json",
+    "prettier.ignorePath": "/bot/.prettierignore",
+    "prettier.requireConfig": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
 }
