@@ -5,6 +5,8 @@ import {
   CardFactory,
   MessageFactory,
   TeamsActivityHandler,
+  TeamsChannelAccount,
+  TeamsInfo,
   TurnContext
 } from "botbuilder"
 import { encode } from "html-entities"
@@ -12,18 +14,25 @@ import rawChosenCard from "./adaptiveCards/chosen.json"
 import rawPickerCard from "./adaptiveCards/personPicker.json"
 import rawWelcomeCard from "./adaptiveCards/welcome.json"
 
+type Mention = {
+  mentioned: TeamsChannelAccount,
+  text: string,
+  type: string
+}
+
 export interface DataInterface {
   chosen: string
 }
 
 export class DailyRotationBot extends TeamsActivityHandler {
   chosenObj: { chosen: string }
-  availableUsersObj: { users: string[] }
+  availableUsersObj: { users: Promise<TeamsChannelAccount>[] }
 
   constructor() {
     super()
 
     this.chosenObj = { chosen: "John Doe" }
+    this.availableUsersObj = { users: [] }
 
     this.onMessage(async (context, next) => {
       console.log("Running with Message Activity.")
@@ -35,7 +44,7 @@ export class DailyRotationBot extends TeamsActivityHandler {
       if (removedMentionText) {
         txt = removedMentionText.toLowerCase().replace(/\n|\r/g, "").trim()
       }
-      if (txt !== null) {
+      if (txt !== null && txt !== undefined) {
         switch (txt) {
           case "welcome": {
             const card =
@@ -60,45 +69,65 @@ export class DailyRotationBot extends TeamsActivityHandler {
             break
           }
           case "notify": {
-            const msg = this.mentionActivityAsync(context)
+            const msg = this.mentionActivity(context)
             await context.sendActivity(msg)
             break
           }
         }
-      } else if (context.activity.value !== null) {
-        for (const userId in context.activity.value) {
-          this.availableUsersObj.users.push(userId)
-        }
-        await context.sendActivity(
-          `Members picked : ${this.availableUsersObj.users}`
-        )
+      } else if (context.activity.value !== null && context.activity.value !== undefined) {
+        const reply = await this.handleRegisterResponse(context)
+        await context.sendActivity(reply)
       }
 
       await next()
     })
   }
 
-  mentionActivityAsync(context: TurnContext) {
-    const mention = {
-      mentioned: context.activity.from,
-      text: `<at>${encode(context.activity.from.name)}</at>`,
-      type: "mention"
+  private handleRegisterResponse(context: TurnContext) {
+    const combinedUserId = context.activity.value.userId
+    if (typeof combinedUserId === 'string') {
+      this.method(combinedUserId, context)
     }
+    return this.getMembersMention()
+  }
 
-    const replyActivity = MessageFactory.text(
-      `${mention.text}, it's your turn today!`
-    )
+  private method(combinedUserId: string, context: TurnContext) {
+    const userIds = combinedUserId.split(',')
+    const members = userIds.map((userId) => TeamsInfo.getMember(context, userId))
+    this.availableUsersObj.users = members
+  }
+
+  private mentionActivity(context: TurnContext) {
+    const mention = this.mention(context.activity.from)
+    const replyActivity = MessageFactory.text(`${ mention.text }, it's your turn today!`)
     replyActivity.entities = [mention]
-
     return replyActivity
   }
 
-  async onAdaptiveCardInvoke(
-    context: TurnContext,
-    invokeValue: AdaptiveCardInvokeValue
-  ): Promise<AdaptiveCardInvokeResponse> {
+  private mention(member: TeamsChannelAccount) {
+    return {
+      mentioned: member,
+      text: `<at>${encode(member.name)}</at>`,
+      type: "mention"
+    }
+  }
+
+  private async getMembersMention() {
+    const mentions = this.availableUsersObj.users.map(async (user) => this.mention(await user))
+    const mentionString = await this.getMentionsAsString(mentions)
+    const replyActivity = MessageFactory.text(`Members picked : ${ mentionString }`)
+    replyActivity.entities = await Promise.all(mentions)
+    return replyActivity
+  }
+
+  private async getMentionsAsString(mentions: Promise<Mention>[]) {
+    const mentionTexts = mentions.map(async (mention) => (await mention).text)
+    return (await Promise.all(mentionTexts)).join(', ')
+  }
+
+  async onAdaptiveCardInvoke(context: TurnContext, invokeValue: AdaptiveCardInvokeValue): Promise<AdaptiveCardInvokeResponse> {
     if (invokeValue.action.verb === "skip") {
-      this.chosenObj.chosen = `Skipped ${this.chosenObj.chosen}`
+      this.chosenObj.chosen = `Skipped ${ this.chosenObj.chosen }`
       const card = AdaptiveCards.declare<DataInterface>(rawChosenCard).render(
         this.chosenObj
       )
