@@ -1,72 +1,62 @@
 {
-    "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.11/MicrosoftTeams.schema.json",
-    "manifestVersion": "1.11",
-    "version": "1.0.0",
-    "id": "{{state.fx-resource-appstudio.teamsAppId}}",
-    "packageName": "com.microsoft.teams.extension",
-    "developer": {
-        "name": "Teams App, Inc.",
-        "websiteUrl": "{{{state.fx-resource-frontend-hosting.endpoint}}}",
-        "privacyUrl": "{{{state.fx-resource-frontend-hosting.endpoint}}}{{{state.fx-resource-frontend-hosting.indexPath}}}/privacy",
-        "termsOfUseUrl": "{{{state.fx-resource-frontend-hosting.endpoint}}}{{{state.fx-resource-frontend-hosting.indexPath}}}/termsofuse"
-    },
-    "icons": {
-        "color": "resources/color.png",
-        "outline": "resources/outline.png"
-    },
-    "name": {
-        "short": "{{config.manifest.appName.short}}",
-        "full": "{{config.manifest.appName.full}}"
-    },
-    "description": {
-        "short": "Short description of {{config.manifest.appName.short}}",
-        "full": "Full description of {{config.manifest.appName.short}}"
-    },
-    "accentColor": "#6e0ffc",
-    "bots": [
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.13/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.13",
+  "version": "1.0.0",
+  "id": "{{state.fx-resource-appstudio.teamsAppId}}",
+  "packageName": "dev.osyx.dailyrotation",
+  "developer": {
+    "name": "Oscar Falkman",
+    "websiteUrl": "https://www.lumera.com/en/",
+    "privacyUrl": "https://www.lumera.com/en/privacy-policy/",
+    "termsOfUseUrl": "https://www.lumera.com/en/terms-of-use/"
+  },
+  "icons": {
+    "color": "resources/color.png",
+    "outline": "resources/outline.png"
+  },
+  "name": {
+    "short": "{{config.manifest.appName.short}}",
+    "full": "{{config.manifest.appName.full}}"
+  },
+  "description": {
+    "short": "A bot that helps you automate rotations of people.",
+    "full": "This bot can help you automate things like who should handle the public team chat etc. It's easy, quick and painless. Get rid of boring tedious manual labour, get automated today!"
+  },
+  "accentColor": "#6e0ffc",
+  "bots": [
+    {
+      "botId": "{{state.fx-resource-bot.botId}}",
+      "scopes": ["team", "groupchat"],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "commandLists": [
         {
-            "botId": "{{state.fx-resource-bot.botId}}",
-            "scopes": [
-                "personal",
-                "team",
-                "groupchat"
-            ],
-            "supportsFiles": false,
-            "isNotificationOnly": false,
-            "commandLists": [
-                {
-                    "scopes": [
-                        "team",
-                        "groupchat"
-                    ],
-                    "commands": [
-                        {
-                            "title": "ping",
-                            "description": "Test if bot is online."
-                        },
-                        {
-                            "title": "choose",
-                            "description": "Show card for the chosen one."
-                        },
-                        {
-                            "title": "register",
-                            "description": "Register the members who should partake in the daily rotation."
-                        },
-                        {
-                            "title": "users",
-                            "description": "Returns the members who are currently taking part in the daily rotation."
-                        }
-                    ]
-                }
-            ]
+          "scopes": ["team", "groupchat"],
+          "commands": [
+            {
+              "title": "choose",
+              "description": "Show card for the chosen one."
+            },
+            {
+              "title": "register",
+              "description": "Register the members who should partake in the daily rotation."
+            },
+            {
+              "title": "users",
+              "description": "Returns the members who are currently taking part in the daily rotation."
+            },
+            {
+              "title": "ping",
+              "description": "Test if bot is online."
+            }
+          ]
         }
-    ],
-    "composeExtensions": [],
-    "configurableTabs": [],
-    "staticTabs": [],
-    "permissions": [
-        "identity",
-        "messageTeamMembers"
-    ],
-    "validDomains": []
+      ]
+    }
+  ],
+  "composeExtensions": [],
+  "configurableTabs": [],
+  "staticTabs": [],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": []
 }

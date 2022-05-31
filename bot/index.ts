@@ -36,6 +36,8 @@ const onTurnErrorHandler = async (context: TurnContext, error: Error) => {
   await context.sendActivity(
     "To continue to run this bot, please fix the bot source code."
   )
+
+  await conversationState.delete(context)
 }
 
 // Set the onTurnError for the singleton BotFrameworkAdapter.
@@ -49,12 +51,10 @@ const bot = new DailyRotationBot(conversationState)
 // Create HTTP server.
 const server = restify.createServer()
 server.listen(process.env.port || process.env.PORT || 3978, () => {
-  console.log(`\nBot Started, ${server.name} listening to ${server.url}`)
+  console.log(`\n${server.name} listening to ${server.url}.`)
 })
 
 // Listen for incoming requests.
-server.post("/api/messages", async (req, res) => {
-  await adapter.processActivity(req, res, async (context) => {
-    await bot.run(context)
-  })
-})
+server.post("/api/messages", async (req, res) =>
+  adapter.processActivity(req, res, async (context) => bot.run(context))
+)
