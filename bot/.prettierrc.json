@@ -1,9 +1,6 @@
 {
-  "tabWidth": 2,
-  "endOfLine" : "lf",
-  "useTabs": false,
-  "semi": false,
-  "trailingComma": "none",
   "importOrder": ["^@core/(.*)$", "^@server/(.*)$", "^@ui/(.*)$", "^[./]"],
-  "importOrderSortSpecifiers": true
+  "importOrderSortSpecifiers": true,
+  "semi": false,
+  "trailingComma": "none"
 }

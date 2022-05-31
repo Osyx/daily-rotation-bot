@@ -21,4 +21,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-.vercel
+# TeamsFx files
+.fx/configs/localSettings.json
+.fx/configs/config.local.json
+.fx/states/state.local.json
+.fx/states/*.userdata
+.env.teamsfx.local
+subscriptionInfo.json

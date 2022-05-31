@@ -16,8 +16,9 @@
     "eslint.workingDirectories": [
         "./bot"
     ],
-    "prettier.configPath": "/bot/.prettierrc.json",
-    "prettier.ignorePath": "/bot/.prettierignore",
+    "prettier.configPath": "./bot/.prettierrc.json",
+    "prettier.ignorePath": "./bot/.prettierignore",
     "prettier.requireConfig": true,
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
 }

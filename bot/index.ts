@@ -1,8 +1,11 @@
-import { BotFrameworkAdapter, ConversationState, MemoryStorage, TurnContext, UserState } from "botbuilder"
+import {
+  BotFrameworkAdapter,
+  ConversationState,
+  MemoryStorage,
+  TurnContext
+} from "botbuilder"
 import * as restify from "restify"
 import { DailyRotationBot } from "./dailyRotationBot"
-
-
 
 // Create adapter.
 // See https://aka.ms/about-bot-adapter to learn more about adapters.
@@ -27,8 +30,12 @@ const onTurnErrorHandler = async (context: TurnContext, error: Error) => {
   )
 
   // Send a message to the user
-  await context.sendActivity(`The bot encountered unhandled error:\n ${error.message}`)
-  await context.sendActivity("To continue to run this bot, please fix the bot source code.")
+  await context.sendActivity(
+    `The bot encountered unhandled error:\n ${error.message}`
+  )
+  await context.sendActivity(
+    "To continue to run this bot, please fix the bot source code."
+  )
 }
 
 // Set the onTurnError for the singleton BotFrameworkAdapter.
