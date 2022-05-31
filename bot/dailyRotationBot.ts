@@ -115,17 +115,18 @@ export class DailyRotationBot extends TeamsActivityHandler {
     const registeredUserIds: string[] = conversationData.registeredUserIds
     let member: TeamsChannelAccount
     if (chosenIndex !== undefined) {
-      let nextChosenIndex = chosenIndex
-      nextChosenIndex =
-        registeredUserIds.length > nextChosenIndex ? nextChosenIndex : 0
-      conversationData.chosenIndex = nextChosenIndex
+      conversationData.chosenIndex =
+        registeredUserIds.length > chosenIndex + 1 ? chosenIndex + 1 : 0
       member = await TeamsInfo.getMember(
         context,
-        registeredUserIds[nextChosenIndex]
+        registeredUserIds[conversationData.chosenIndex]
       )
       this.chosenObj = { chosen: member.name }
     } else {
-      this.chosenObj = { chosen: "John Doe" }
+      this.chosenObj = {
+        chosen:
+          'There\'s no-one to choose! Register members with the "register" command.'
+      }
     }
 
     return {
