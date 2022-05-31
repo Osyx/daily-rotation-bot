@@ -1,5 +1,6 @@
 import { AdaptiveCards } from "@microsoft/adaptivecards-tools"
 import {
+  Activity,
   AdaptiveCardInvokeResponse,
   AdaptiveCardInvokeValue,
   CardFactory,
@@ -16,37 +17,42 @@ import rawChosenCard from "./adaptiveCards/chosen.json"
 import rawPickerCard from "./adaptiveCards/personPicker.json"
 import rawPingCard from "./adaptiveCards/ping.json"
 
+type ChosenOutput = {
+  cardActivity: Partial<Activity>,
+  pingActivity: Partial<Activity>
+}
 
 type SaveData = {
+  chosenIndex: number,
   registeredUserIds: string[]
 }
 
-export interface DataInterface {
+export interface ChosenDataInterface {
   chosen: string
 }
 
+const DEFAULTS: SaveData = { registeredUserIds: [], chosenIndex: undefined }
 const CONVERSATION_DATA_PROPERTY = 'conversationData'
 
 export class DailyRotationBot extends TeamsActivityHandler {
 
-  chosenObj: { chosen: string }
+  chosenObj: ChosenDataInterface
   conversationState: ConversationState
   conversationDataAccessor: StatePropertyAccessor
 
   constructor(conversationState: ConversationState) {
     super()
 
-    this.chosenObj = { chosen: "John Doe" }
     this.conversationState = conversationState
     this.conversationDataAccessor = conversationState.createProperty(CONVERSATION_DATA_PROPERTY)
 
     this.onMessage(async (context, next) => {
       console.log("Running with Message Activity.")
 
-      const conversationData = await this.conversationDataAccessor.get(context, { registeredUserIds: [] })
+      const conversationData: SaveData = await this.conversationDataAccessor.get(context, DEFAULTS)
 
-      let txt = context.activity.text
-      const removedMentionText = TurnContext.removeRecipientMention(
+      let txt: string = context.activity.text
+      const removedMentionText: string = TurnContext.removeRecipientMention(
         context.activity
         )
         if (removedMentionText) {
@@ -62,10 +68,11 @@ export class DailyRotationBot extends TeamsActivityHandler {
             break
           }
           case "choose": {
-            const card = AdaptiveCards.declare<DataInterface>(rawChosenCard).render(this.chosenObj)
-            await context.sendActivity({
-              attachments: [CardFactory.adaptiveCard(card)]
-            })
+            const chosenOutput: ChosenOutput = await this.handleChoose(context, conversationData)
+            await context.sendActivity(chosenOutput.cardActivity)
+            if (chosenOutput.pingActivity !== undefined) {
+              await context.sendActivity(chosenOutput.pingActivity)
+            }
             break
           }
           case "register": {
@@ -75,8 +82,8 @@ export class DailyRotationBot extends TeamsActivityHandler {
           }
           case "users": {
             if (conversationData.registeredUserIds) {
-              const msg = await this.handleRegisteredUsers(context, conversationData)
-              await context.sendActivity(msg)
+              const usersActivity = await this.handleRegisteredUsers(context, conversationData)
+              await context.sendActivity(usersActivity)
             }
             break
           }
@@ -89,20 +96,59 @@ export class DailyRotationBot extends TeamsActivityHandler {
     })
   }
 
-  private async handleRegisteredUsers(context: TurnContext, conversationData: SaveData) {
-    const userIds = conversationData.registeredUserIds
-    const members = userIds.map((userId) => TeamsInfo.getMember(context, userId))
-    return this.getSavedMembersMention(members)
+  private async handleChoose(context: TurnContext, conversationData: SaveData): Promise<ChosenOutput> {
+    const chosenIndex: number = conversationData.chosenIndex
+    const registeredUserIds: string[] = conversationData.registeredUserIds
+    let member: TeamsChannelAccount
+    if (chosenIndex !== undefined) {
+      let nextChosenIndex = chosenIndex + 1
+      nextChosenIndex = registeredUserIds.length > nextChosenIndex
+        ? nextChosenIndex
+        : 0
+      conversationData.chosenIndex = nextChosenIndex
+      member = await TeamsInfo.getMember(context, registeredUserIds[nextChosenIndex])
+      this.chosenObj = { chosen: member.name }
+    } else {
+      this.chosenObj = { chosen: "John Doe" }
+    }
+
+    return {
+      cardActivity: this.constructChosenActivity(member),
+      pingActivity: this.constructPingActivity(member)
+    }
   }
 
-  private async getSavedMembersMention(members: Promise<TeamsChannelAccount>[]) {
+  private constructChosenActivity(member: TeamsChannelAccount): Partial<Activity> {
+    const chosenActivity: Partial<Activity>  = {}
+    const renderedChosenCard = AdaptiveCards.declare<ChosenDataInterface>(rawChosenCard).render(this.chosenObj)
+    chosenActivity.attachments = [CardFactory.adaptiveCard(renderedChosenCard)]
+    return chosenActivity
+  }
+
+  private constructPingActivity(member: TeamsChannelAccount): Partial<Activity> {
+    if (member === undefined) {
+      return undefined
+    }
+    const mention = this.mention(member)
+    const chosenActivity: Partial<Activity>  = MessageFactory.text(`Your turn, ${ mention.text }!`)
+    chosenActivity.entities = [mention]
+    return chosenActivity
+  }
+
+  private async handleRegisteredUsers(context: TurnContext, conversationData: SaveData): Promise<Partial<Activity>> {
+    const userIds = conversationData.registeredUserIds
+    const members = userIds.map((userId) => TeamsInfo.getMember(context, userId))
+    return this.getSavedMembersActivity(members)
+  }
+
+  private async getSavedMembersActivity(members: Promise<TeamsChannelAccount>[]): Promise<Partial<Activity>> {
     const promisedMentions = members.map(async (user) => this.mention(await user))
     const mentions = await Promise.all(promisedMentions)
     const mentionTexts = mentions.map((mention) => mention.text)
     const mentionText = mentionTexts.join(', ')
-    const replyActivity = MessageFactory.text(`Saved members: ${ mentionText }`)
-    replyActivity.entities = mentions
-    return replyActivity
+    const savedMembersActivity = MessageFactory.text(`Current rotation members: ${ mentionText.length === 0 ? 'None!' : mentionText }`)
+    savedMembersActivity.entities = mentions
+    return savedMembersActivity
   }
 
   private mention(member: TeamsChannelAccount) {
@@ -113,29 +159,32 @@ export class DailyRotationBot extends TeamsActivityHandler {
     }
   }
 
-  private handleRegisterResponse(context: TurnContext, conversationData: SaveData) {
+  private handleRegisterResponse(context: TurnContext, conversationData: SaveData): void {
     const combinedUserId = context.activity.value.userId
     if (typeof combinedUserId === 'string') {
       const userIds = combinedUserId.split(',')
+      conversationData.chosenIndex = 0
       conversationData.registeredUserIds = userIds
     }
   }
 
   async onAdaptiveCardInvoke(context: TurnContext, invokeValue: AdaptiveCardInvokeValue): Promise<AdaptiveCardInvokeResponse> {
     if (invokeValue.action.verb === "skip") {
-      this.chosenObj.chosen = `Skipped ${ this.chosenObj.chosen }`
-      const card = AdaptiveCards.declare<DataInterface>(rawChosenCard).render(this.chosenObj)
-      await context.updateActivity({
-        type: "message",
-        id: context.activity.replyToId,
-        attachments: [CardFactory.adaptiveCard(card)]
-      })
+      const conversationData: SaveData = await this.conversationDataAccessor.get(context, DEFAULTS)
+      const chosenOutput: ChosenOutput = await this.handleChoose(context, conversationData)
+      const updatedActivity = chosenOutput.cardActivity
+      updatedActivity.id = context.activity.replyToId
+      updatedActivity.type = 'message'
+      await context.updateActivity(updatedActivity)
+      if (chosenOutput.pingActivity !== undefined) {
+        await context.sendActivity(chosenOutput.pingActivity)
+      }
       return { statusCode: 200, type: undefined, value: undefined }
     }
   }
 
-  async run(context: TurnContext) {
+  async run(context: TurnContext): Promise<void> {
     await super.run(context)
     await this.conversationState.saveChanges(context, false)
-}
+  }
 }
