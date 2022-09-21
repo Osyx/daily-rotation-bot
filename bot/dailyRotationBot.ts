@@ -7,6 +7,7 @@ import {
   ConversationState,
   MessageFactory,
   StatePropertyAccessor,
+  TaskModuleRequest,
   TeamsActivityHandler,
   TeamsChannelAccount,
   TeamsInfo,
@@ -16,6 +17,8 @@ import { encode } from "html-entities"
 import rawChosenCard from "./adaptiveCards/chosen.json"
 import rawPickerCard from "./adaptiveCards/personPicker.json"
 import rawPingCard from "./adaptiveCards/ping.json"
+import rawTaskModuleCard from "./adaptiveCards/taskModule.json"
+import { TaskManager } from "./taskManager"
 
 type ChosenOutput = {
   cardActivity: Partial<Activity>
@@ -23,6 +26,7 @@ type ChosenOutput = {
 }
 
 type SaveData = {
+  chosenName: string
   chosenIndex: number
   registeredUserIds: string[]
 }
@@ -31,13 +35,19 @@ export interface ChosenDataInterface {
   chosen: string
 }
 
-const DEFAULTS: SaveData = { registeredUserIds: [], chosenIndex: undefined }
+const DEFAULTS: SaveData = {
+  registeredUserIds: [],
+  chosenIndex: undefined,
+  chosenName:
+    'There\'s no-one to choose! Register members with the "register" command.'
+}
 const CONVERSATION_DATA_PROPERTY = "conversationData"
 
 export class DailyRotationBot extends TeamsActivityHandler {
   chosenObj: ChosenDataInterface
   conversationState: ConversationState
   conversationDataAccessor: StatePropertyAccessor
+  taskManager: TaskManager
 
   constructor(conversationState: ConversationState) {
     super()
@@ -46,6 +56,8 @@ export class DailyRotationBot extends TeamsActivityHandler {
     this.conversationDataAccessor = conversationState.createProperty(
       CONVERSATION_DATA_PROPERTY
     )
+
+    this.taskManager = new TaskManager()
 
     this.onMessage(async (context, next) => {
       console.log("Running with Message Activity.")
@@ -70,10 +82,12 @@ export class DailyRotationBot extends TeamsActivityHandler {
             break
           }
           case "choose": {
-            const chosenOutput: ChosenOutput = await this.handleChoose(
-              context,
-              conversationData
-            )
+            const chosenOutput: ChosenOutput =
+              await DailyRotationBot.handleChoose(
+                context,
+                conversationData,
+                this.chosenObj
+              )
             await context.sendActivity(chosenOutput.cardActivity)
             if (chosenOutput.pingActivity !== undefined) {
               await context.sendActivity(chosenOutput.pingActivity)
@@ -95,6 +109,11 @@ export class DailyRotationBot extends TeamsActivityHandler {
             }
             break
           }
+          case "schedule": {
+            const userCard = CardFactory.adaptiveCard(rawTaskModuleCard)
+            await context.sendActivity({ attachments: [userCard] })
+            break
+          }
         }
       } else if (
         context.activity.value !== null &&
@@ -107,9 +126,10 @@ export class DailyRotationBot extends TeamsActivityHandler {
     })
   }
 
-  private async handleChoose(
+  static async handleChoose(
     context: TurnContext,
-    conversationData: SaveData
+    conversationData: SaveData,
+    chosenObj: ChosenDataInterface
   ): Promise<ChosenOutput> {
     const chosenIndex: number = conversationData.chosenIndex
     const registeredUserIds: string[] = conversationData.registeredUserIds
@@ -121,32 +141,34 @@ export class DailyRotationBot extends TeamsActivityHandler {
         context,
         registeredUserIds[conversationData.chosenIndex]
       )
-      this.chosenObj = { chosen: member.name }
+      chosenObj = { chosen: member.name }
     } else {
-      this.chosenObj = {
+      chosenObj = {
         chosen:
           'There\'s no-one to choose! Register members with the "register" command.'
       }
     }
 
     return {
-      cardActivity: this.constructChosenActivity(member),
+      cardActivity: this.constructChosenActivity(member, chosenObj),
       pingActivity: this.constructPingActivity(member)
     }
   }
 
-  private constructChosenActivity(
-    member: TeamsChannelAccount
+  private static constructChosenActivity(
+    member: TeamsChannelAccount,
+    chosenObj: ChosenDataInterface
   ): Partial<Activity> {
     const chosenActivity: Partial<Activity> = {}
-    const renderedChosenCard = AdaptiveCards.declare<ChosenDataInterface>(
-      rawChosenCard
-    ).render(this.chosenObj)
+    const renderedChosenCard =
+      AdaptiveCards.declare<ChosenDataInterface>(rawChosenCard).render(
+        chosenObj
+      )
     chosenActivity.attachments = [CardFactory.adaptiveCard(renderedChosenCard)]
     return chosenActivity
   }
 
-  private constructPingActivity(
+  private static constructPingActivity(
     member: TeamsChannelAccount
   ): Partial<Activity> {
     if (member === undefined) {
@@ -175,7 +197,7 @@ export class DailyRotationBot extends TeamsActivityHandler {
     members: Promise<TeamsChannelAccount>[]
   ): Promise<Partial<Activity>> {
     const promisedMentions = members.map(async (user) =>
-      this.mention(await user)
+      DailyRotationBot.mention(await user)
     )
     const mentions = await Promise.all(promisedMentions)
     const mentionTexts = mentions.map((mention) => mention.text)
@@ -189,7 +211,7 @@ export class DailyRotationBot extends TeamsActivityHandler {
     return savedMembersActivity
   }
 
-  private mention(member: TeamsChannelAccount) {
+  private static mention(member: TeamsChannelAccount) {
     return {
       mentioned: member,
       text: `<at>${encode(member.name)}</at>`,
@@ -216,9 +238,10 @@ export class DailyRotationBot extends TeamsActivityHandler {
     if (invokeValue.action.verb === "skip") {
       const conversationData: SaveData =
         await this.conversationDataAccessor.get(context, DEFAULTS)
-      const chosenOutput: ChosenOutput = await this.handleChoose(
+      const chosenOutput: ChosenOutput = await DailyRotationBot.handleChoose(
         context,
-        conversationData
+        conversationData,
+        this.chosenObj
       )
       const updatedActivity = chosenOutput.cardActivity
       updatedActivity.id = context.activity.replyToId
@@ -229,6 +252,31 @@ export class DailyRotationBot extends TeamsActivityHandler {
       }
       return { statusCode: 200, type: undefined, value: undefined }
     }
+  }
+
+  // Handle task module fetch.
+  handleTeamsTaskModuleFetch(
+    context: TurnContext,
+    taskModuleRequest: TaskModuleRequest
+  ) {
+    return this.taskManager.handleFetch(taskModuleRequest)
+  }
+
+  // Handle task module submit action.
+  async handleTeamsTaskModuleSubmit(
+    context: TurnContext,
+    taskModuleRequest: TaskModuleRequest
+  ) {
+    const conversationData: SaveData = await this.conversationDataAccessor.get(
+      context,
+      DEFAULTS
+    )
+    // Create new object to save task details.
+    return this.taskManager.handleSubmit(
+      taskModuleRequest,
+      context,
+      conversationData
+    )
   }
 
   async run(context: TurnContext): Promise<void> {

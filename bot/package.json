@@ -23,11 +23,13 @@
     "botbuilder-dialogs": "^4.16.0",
     "html-entities": "^2.3.3",
     "isomorphic-fetch": "^3.0.0",
+    "node-schedule": "^2.1.0",
     "restify": "^8.6.1"
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^3.2.0",
     "@tsconfig/recommended": "^1.0.1",
+    "@types/node-schedule": "^2.1.0",
     "@types/restify": "8.5.4",
     "@typescript-eslint/eslint-plugin": "^5.27.0",
     "@typescript-eslint/parser": "^5.27.0",

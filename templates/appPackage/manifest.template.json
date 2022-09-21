@@ -19,7 +19,7 @@
     "full": "{{config.manifest.appName.full}}"
   },
   "description": {
-    "short": "A bot that helps you automate rotations of people.",
+    "short": "A bot that helps you automate a rotation of people.",
     "full": "This bot can help you automate things like who should handle the public team chat etc. It's easy, quick and painless. Get rid of boring tedious manual labour, get automated today!"
   },
   "accentColor": "#6e0ffc",
@@ -33,6 +33,10 @@
         {
           "scopes": ["team", "groupchat"],
           "commands": [
+            {
+              "title": "schedule",
+              "description": "Schedule the rotation."
+            },
             {
               "title": "choose",
               "description": "Show card for the chosen one."

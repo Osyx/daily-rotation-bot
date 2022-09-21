@@ -55,6 +55,10 @@ server.listen(process.env.port || process.env.PORT || 3978, () => {
 })
 
 // Listen for incoming requests.
+server.get("/scheduleTask", (req, res, next) => {
+  res.send("./views/ScheduleTask")
+})
+
 server.post("/api/messages", async (req, res) =>
   adapter.processActivity(req, res, async (context) => bot.run(context))
 )
